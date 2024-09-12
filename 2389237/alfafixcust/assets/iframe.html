@@ -1,0 +1,287 @@
+<html>
+<head>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/sha256.js"></script>
+    <!-- https://github.com/zendesk/zendesk_app_framework_sdk -->
+  <script type="text/javascript" src="https://static.zdassets.com/zendesk_app_framework_sdk/2.0/zaf_sdk.min.js"></script>
+  <style type="text/css">
+    body {
+      font-family: sans-serif;
+      background: #d5f0f3;
+    }
+  
+    h1 {
+      text-align: center;
+      /*ketebalan font*/
+      font-weight: 300;
+    }
+  
+    .tulisan_login {
+      text-align: center;
+      /*membuat semua huruf menjadi kapital*/
+      text-transform: uppercase;
+    }
+  
+    /*.kotak_profile {
+      width: 100%;
+      background: white;
+      /*meletakkan form ke tengah
+      margin: 80px auto;
+      padding: 10px 10px;
+    }*/
+  
+    label {
+      font-size: 11pt;
+    }
+  
+    .form_login {
+      /*membuat lebar form penuh*/
+      box-sizing: border-box;
+      width: 100%;
+      padding: 10px;
+      font-size: 11pt;
+      margin-bottom: 20px;
+    }
+  
+    .tombol_login {
+      background: #023456;
+      color: white;
+      font-size: 11pt;
+      width: 100%;
+      border: none;
+      border-radius: 3px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  
+    .link {
+      color: #232323;
+      text-decoration: none;
+      font-size: 10pt;
+    }
+  
+    /* Gaya tabel */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+  
+    table th,
+    table td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid black;
+    }
+  
+    table th {
+      background-color: #f2f2f2;
+    }
+
+    #dataOutput tr td:first-child {
+      cursor: pointer;
+    }
+
+    div:where(.swal2-container) button:where(.swal2-styled).swal2-confirm {
+      border: 0;
+      border-radius: 0.25em;
+      background: initial;
+      background-color: #023456;
+      color: #fff;
+      font-size: 1em;
+  }
+  </style>
+  
+</head>
+<body>
+ <div class="kotak_profile">
+  <p class="tulisan_login">Masukan ID</p>
+
+  <form>
+    <label for="parameterType">Mode:</label>
+        <select id="parameterType" class="form_login">
+          <option value="mobile">Mobile</option>
+          <option value="email">Email</option>
+        </select>
+
+    <label>ID:</label>
+    <input type="text" id="id_profile" class="form_login" placeholder="ID ..">
+
+    
+  </form>
+  <button onclick="performAction()" type="button" class="tombol_login">Get Profile</button>
+
+ </div>
+ 
+  <script type="text/javascript">
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Mendapatkan elemen input dengan ID 'id_profile'
+      var inputElement = document.getElementById("id_profile");
+    
+      // Menambahkan event listener untuk menangkap tombol "Enter"
+      inputElement.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+          event.preventDefault(); // Mencegah tindakan default tombol "Enter"
+        }
+      });
+    });
+
+    var client = ZAFClient.init();
+    let secretKey;
+
+    client.on('app.registered', function() { //*****mandatory*****
+      client.metadata().then(function(metadata) {
+        secretKey = metadata.settings.GLI_Secret_Key;
+        usernameApp  = metadata.settings.Username_Alfacare;
+        passwordApp  = metadata.settings.Password_Alfacare;
+
+    });
+    client.invoke('resize', {
+        width: '100%',
+        height: '350px'
+    }); //*****mandatory*****
+  });
+
+    let token;
+    const endpoint = 'https://uat.gli.id:7071/csalfamart/login';
+ //isi   
+      function performAction() {
+        const token_gli = sessionStorage.getItem("token_gli");
+        
+        if (token_gli === null) {
+          authToken();
+        } else {
+          getProfile();
+        }
+      }
+
+      function authToken() {
+        const username = usernameApp;
+        const password = passwordApp;
+        const param    = JSON.stringify({ "username": username, "password": password });
+        const hashing  = CryptoJS.SHA256(param + secretKey);
+        const payload  = '{"username":"' + username + '", "password":"' + password + '", "checksum":"' + hashing + '"}';
+
+        $.ajax({
+          url: endpoint,
+          type: "POST",
+          dataType: 'json',
+          contentType: 'application/json',
+          data: payload,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Access-Control-Allow-Origin': 'https://941088.apps.zdusercontent.com'
+          },
+          beforeSend: function() {
+            Swal.fire({
+                title: 'Please wait',
+                timerProgressBar: false,
+                didOpen: () => {
+                Swal.showLoading()                               
+                },             
+              }).then((result) => {
+                if (result.dismiss === Swal.DismissReason.timer) {
+                }
+              })
+          },
+          success: function (result) {
+            // Save data to sessionStorage
+            sessionStorage.setItem("token_gli", result.data.token);
+            getProfile();
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            Swal.fire({
+              title: 'Username atau Password salah',
+              text: 'Hubungi admin',
+              icon: 'error'
+            });
+          }
+        });
+      }
+
+      function getProfile() {
+        const endpoint_profile = 'https://uat.gli.id:7071/csalfamart/inquiryprofile';
+
+        const mode = document.getElementById("parameterType").value;
+        const id_profile = document.getElementById("id_profile").value;
+        const token = sessionStorage.getItem("token_gli");
+        const param = JSON.stringify({ "mode": mode, "id": id_profile, "issuer": '001', "token": token });
+        const hashing = CryptoJS.SHA256(param + secretKey);
+        const payload = '{"mode":"' + mode + '", "id":"' + id_profile + '", "issuer":"001", "token":"' + token + '", "checksum":"' + hashing + '"}';
+
+        $.ajax({
+          url: endpoint_profile,
+          type: "POST",
+          dataType: 'json',
+          contentType: 'application/json',
+          data: payload,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Access-Control-Allow-Origin': 'https://941088.apps.zdusercontent.com'
+          },
+          beforeSend: function () {
+            Swal.fire({
+              title: 'Please wait',
+              timerProgressBar: false,
+              didOpen: () => {
+                Swal.showLoading()
+              },
+            }).then((result) => {
+              /* Read more about handling dismissals below */
+              if (result.dismiss === Swal.DismissReason.timer) {
+              }
+            })
+          },
+          success: function (result) {
+            if (isDataValid(result.data)) {
+              Swal.fire({
+                title: 'Success!',
+                width: '600px',
+                html: generateTable(result.data)
+              });
+            } else {
+              Swal.fire({
+                title: 'Data Not Found!',
+                text: 'Mode atau ID salah',
+                icon: 'error'
+              });
+            }
+
+            function isDataValid(data) {
+              return (
+                data.Name !== undefined &&
+                data.AccountCard !== undefined &&
+                data.phone_number !== undefined &&
+                data.email !== undefined
+              );
+            }
+
+            function generateTable(data) {
+              var table = '<table class="table" id="dataOutput">';
+              table += '<tr><th>Nama</th><th>Account Card</th><th>Nomor Telepon</th><th>Email</th></tr>';
+              table += '<tr>';
+              table += '<td>' + data.Name + '</td>';
+              table += '<td>' + data.AccountCard + '</td>';
+              table += '<td id="col3">' + data.phone_number + '</td>';
+              table += '<td id="col4">' + data.email + '</td>';
+              table += '</tr>';
+              table += '</table>';
+
+              return table;
+            }
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            Swal.fire({
+              title: 'Data Not Found!',
+              text: 'Mode atau ID salah',
+              icon: 'error'
+            });
+          }
+        });
+      }
+  </script>
+</body>
+</html>
